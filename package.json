@@ -1,0 +1,11 @@
+{
+  "name": "cue-maker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Rule-based film cue sketching and rendering in the browser",
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs",
+    "test": "node --test test/*.test.js"
+  }
+}

@@ -1,0 +1,11 @@
+.DS_Store
+node_modules/
+
+# Picture and audio stay local: test clips, proxies and renders are opened via file pickers.
+media/
+*.mov
+*.mp4
+*.m4v
+*.wav
+*.fcpxml
+*.fcpxmld/

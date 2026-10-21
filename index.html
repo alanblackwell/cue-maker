@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cue Maker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Cue Maker <span id="version" class="muted"></span></h1>
+    <input id="title" class="title-input" aria-label="Cue title" spellcheck="false">
+    <div class="spacer"></div>
+    <label class="btn">Open video…<input type="file" id="video-file" accept="video/*,.mov,.mp4,.m4v" hidden></label>
+    <label class="btn">Import FCPXML…<input type="file" id="fcpxml-file" accept=".fcpxml,.xml" hidden></label>
+    <label class="btn">Open project…<input type="file" id="project-file" accept=".json" hidden></label>
+    <button id="save-project" class="btn">Save project</button>
+    <button id="bug-report" class="btn subtle" title="Download a file describing the current state, to send with a problem report">Bug report</button>
+  </header>
+
+  <main class="layout">
+    <section class="stage">
+      <div class="video-wrap">
+        <video id="video" playsinline preload="auto"></video>
+        <div id="no-video" class="placeholder">
+          <p>No video loaded.</p>
+          <p class="muted">Open an H.264 proxy exported from Final Cut, or sketch without picture.</p>
+        </div>
+        <div id="tc-overlay" class="tc overlay"></div>
+      </div>
+
+      <div class="transport">
+        <button id="play" class="btn primary" title="Play / pause (Space)">Play</button>
+        <button id="to-start" class="btn" title="Go to the cue start (Home)">⇤ Cue start</button>
+        <span id="tc" class="tc big">00:00:00:00</span>
+        <span id="phase-now" class="muted"></span>
+        <div class="spacer"></div>
+        <label class="inline"><input type="checkbox" id="video-sound" checked> Video sound</label>
+        <label class="inline">Frame rate <select id="fps"></select></label>
+        <label class="inline">Start TC <input id="tc-start" class="tc" size="11" spellcheck="false"></label>
+      </div>
+
+      <canvas id="timeline" class="timeline"></canvas>
+      <p class="hint muted">Drag the phase lines to move them · click or drag elsewhere to scrub · Space plays · ← → step one frame</p>
+    </section>
+
+    <aside class="panel">
+      <section>
+        <h2>Structure</h2>
+        <table class="points"><tbody id="points"></tbody></table>
+        <p id="tempo-readout" class="readout"></p>
+      </section>
+
+      <section>
+        <h2>Music</h2>
+        <div class="field">
+          <label for="mood">Mood</label>
+          <select id="mood"></select>
+        </div>
+        <div class="field">
+          <label for="tempo">Tempo <output id="tempo-out"></output></label>
+          <input type="range" id="tempo" min="60" max="160" step="1">
+        </div>
+        <div class="field">
+          <label for="energy">Energy <output id="energy-out"></output></label>
+          <input type="range" id="energy" min="0" max="1" step="0.01">
+        </div>
+        <div class="field">
+          <label for="curve">Build shape</label>
+          <input type="range" id="curve" min="0.5" max="3" step="0.1">
+          <div class="scale-labels muted"><span>steady</span><span>late surge</span></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Layers</h2>
+        <table class="layers">
+          <thead><tr><th></th><th>Play</th><th>Lock</th><th class="seed">Seed</th></tr></thead>
+          <tbody id="layers"></tbody>
+        </table>
+        <div class="row">
+          <button id="undo-variation" class="btn" title="Go back to the previous variation">← Previous</button>
+          <button id="reroll" class="btn primary" title="Re-roll every unlocked layer">New variation</button>
+        </div>
+        <p class="muted small">Locked layers keep their material when you ask for a new variation.</p>
+      </section>
+
+      <section>
+        <h2>Render</h2>
+        <label class="inline"><input type="checkbox" id="stems"> Also render a stem per layer</label>
+        <button id="render" class="btn primary wide">Render WAV · 48 kHz / 24-bit</button>
+        <progress id="render-progress" max="1" value="0" hidden></progress>
+        <p id="render-status" class="readout"></p>
+      </section>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
