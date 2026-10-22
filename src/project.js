@@ -17,6 +17,8 @@ export function defaultProject() {
     timing: { fpsNum: 24, fpsDen: 1, dropFrame: false, tcStart: '01:00:00:00' },
     points: { start: 2, build: 10, hit: 26, tail: 30, end: 38 },
     markers: [],
+    // The Final Cut XML the markers came from, or null.
+    xml: null,
     music: { mood: 'dark', tempo: 96, energy: 0.8, buildCurve: 1.8 },
     seeds: { harmony: 1, pad: 2, pulse: 3, perc: 4, riser: 5 },
     locks: { harmony: false, pad: false, pulse: false, perc: false, riser: false },
@@ -32,8 +34,9 @@ export function migrateProject(raw) {
   // Future format changes: transform older versions here, oldest first.
   const base = defaultProject();
   const doc = { ...base };
-  for (const key of ['title', 'markers']) if (raw[key] !== undefined) doc[key] = raw[key];
+  for (const key of ['title', 'markers', 'xml']) if (raw[key] !== undefined) doc[key] = raw[key];
   for (const key of ['video', 'timing', 'points', 'music', 'seeds', 'locks', 'mutes']) doc[key] = { ...base[key], ...raw[key] };
+  if (!doc.xml?.file) doc.xml = null;
   if (!MOODS[doc.music.mood]) doc.music.mood = base.music.mood;
   const ordered = POINT_KEYS.every((k, i) => i === 0 || doc.points[k] > doc.points[POINT_KEYS[i - 1]]);
   if (!ordered) doc.points = base.points;

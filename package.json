@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node serve.mjs",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "safari": "open -a Safari http://127.0.0.1:8000/",
+    "chrome": "open -a 'Google Chrome' http://127.0.0.1:8000/"
   }
 }

@@ -15,9 +15,11 @@ No install step and no dependencies; you just need Node.
 npm start            # or: node serve.mjs [port]
 ```
 
-Then open <http://127.0.0.1:8000/> in Chrome (recommended: it can save projects
-and renders straight into folders) or Safari. Opening `index.html` directly
-as a `file://` URL will not work.
+Then `npm run chrome` (or open <http://127.0.0.1:8000/> yourself). Chrome is
+the supported browser for now: it can save projects and renders straight into
+a chosen folder, and drag and drop of Final Cut's `.fcpxmld` package has only
+been designed for it. Safari (`npm run safari`) is untested. Opening
+`index.html` directly as a `file://` URL will not work.
 
 ```sh
 npm test             # logic, file formats and a simulated Web Audio run
@@ -29,12 +31,13 @@ npm test             # logic, file formats and a simulated Web Audio run
    building, hit, start its tail, and end. Naming them `Intro`, `Build`, `Hit`,
    `Tail`, `End` makes the mapping explicit; unnamed markers are used in order.
 2. **File > Export XML…** Recent versions of Final Cut save a `.fcpxmld`
-   bundle; either choose an older FCPXML version in the export dialog, or use
-   *Show Package Contents* and pick the `Info.fcpxml` inside.
+   bundle; Cue Maker reads the `Info.fcpxml` inside it for you.
 3. Export a proxy of the same timeline as **H.264** (Chrome can't play
    ProRes).
-4. In Cue Maker: **Open video…**, then **Import FCPXML…** (this also sets the
-   frame rate and start timecode).
+4. In Cue Maker, drop the proxy on the video window and the `.fcpxmld` (or
+   `.fcpxml`) on the XML panel beside it; both together works too. The XML
+   panel shrinks to a tick once markers are loaded (hover it for details),
+   and also sets the frame rate and start timecode.
 
 Rendered WAVs carry a Broadcast WAV time reference for the cue's start, so
 tools that honour it (Pro Tools, Logic and others) can spot them to timecode.

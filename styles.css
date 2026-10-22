@@ -131,6 +131,7 @@ body {
   text-align: center;
   padding: 16px;
 }
+.placeholder[hidden] { display: none; }
 .placeholder p { margin: 2px; }
 .placeholder .muted { color: #999; }
 .tc { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
@@ -243,3 +244,78 @@ progress { width: 100%; margin-top: 8px; accent-color: var(--accent); }
   transition: opacity 0.2s;
 }
 .toast.show { opacity: 1; }
+
+
+/* Drop zones: the video window, and the XML panel beside it. While files are
+   dragged over the page both are outlined; the one under the pointer fills. */
+.stage-row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+.stage-row .video-wrap { flex: 1; min-width: 0; margin: 0; }
+.drop-title { font-size: 1.1rem; font-weight: 600; }
+.drop-zone { outline: 3px dashed transparent; outline-offset: -3px; transition: outline-color 0.15s, background-color 0.15s; }
+.dragging .drop-zone { outline-color: var(--accent); }
+.drop-zone.drop-hover { outline-style: solid; }
+.video-wrap.drop-hover::after {
+  content: "Drop to open";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.xml-zone {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: center;
+  transition: flex-basis 0.25s, padding 0.25s;
+}
+.xml-zone p { margin: 4px 0; }
+.xml-zone.drop-hover { background: var(--surface-2); }
+.xml-zone[data-state="error"] { border-color: var(--phase-climax); }
+.xml-zone[data-state="error"] .drop-title { color: var(--phase-climax); }
+.xml-done { display: none; font-size: 28px; line-height: 1; font-weight: 700; color: var(--playhead); }
+.xml-zone[data-state="done"] {
+  flex-basis: 56px;
+  align-self: flex-start;
+  height: 56px;
+  padding: 0;
+  align-items: center;
+  border: 2px solid var(--playhead);
+  cursor: help;
+}
+.xml-zone[data-state="done"] .xml-empty { display: none; }
+.xml-zone[data-state="done"] .xml-done { display: block; }
+
+@media (max-width: 600px) {
+  .stage-row { flex-direction: column; }
+  .xml-zone { flex-basis: auto; }
+  .xml-zone[data-state="done"] { align-self: flex-start; width: 56px; }
+}
+
+.browser-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border-bottom: 3px solid var(--accent);
+  font-size: 15px;
+}
+.browser-notice[hidden] { display: none; }
+.browser-notice p { margin: 0; flex: 1 1 320px; }
+.browser-notice .row { margin: 0; }

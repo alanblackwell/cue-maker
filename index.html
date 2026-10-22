@@ -11,22 +11,41 @@
     <h1>Cue Maker <span id="version" class="muted"></span></h1>
     <input id="title" class="title-input" aria-label="Cue title" spellcheck="false">
     <div class="spacer"></div>
-    <label class="btn">Open video…<input type="file" id="video-file" accept="video/*,.mov,.mp4,.m4v" hidden></label>
-    <label class="btn">Import FCPXML…<input type="file" id="fcpxml-file" accept=".fcpxml,.xml" hidden></label>
     <label class="btn">Open project…<input type="file" id="project-file" accept=".json" hidden></label>
     <button id="save-project" class="btn">Save project</button>
     <button id="bug-report" class="btn subtle" title="Download a file describing the current state, to send with a problem report">Bug report</button>
   </header>
 
+  <div id="browser-notice" class="browser-notice" role="alert" hidden>
+    <p><b>Please use Google Chrome for Cue Maker.</b> It doesn't work reliably in Safari yet.
+      Copy this page's address, then paste it into Chrome's address bar.</p>
+    <div class="row">
+      <button id="copy-address" class="btn primary">Copy address</button>
+      <button id="dismiss-notice" class="btn subtle">Continue in Safari anyway</button>
+    </div>
+  </div>
+
   <main class="layout">
     <section class="stage">
-      <div class="video-wrap">
-        <video id="video" playsinline preload="auto"></video>
-        <div id="no-video" class="placeholder">
-          <p>No video loaded.</p>
-          <p class="muted">Open an H.264 proxy exported from Final Cut, or sketch without picture.</p>
+      <div class="stage-row">
+        <div class="video-wrap drop-zone" id="video-zone">
+          <video id="video" playsinline preload="auto"></video>
+          <div id="no-video" class="placeholder">
+            <p class="drop-title" id="video-zone-title">Drop the video here</p>
+            <p class="muted" id="video-zone-detail">An H.264 proxy exported from Final Cut (.mov or .mp4).</p>
+            <p class="muted">Or sketch without picture.</p>
+          </div>
+          <div id="tc-overlay" class="tc overlay"></div>
         </div>
-        <div id="tc-overlay" class="tc overlay"></div>
+
+        <div class="xml-zone drop-zone" id="xml-zone" data-state="empty">
+          <div class="xml-empty">
+            <p class="drop-title" id="xml-zone-title">Drop the FCPXML file here</p>
+            <p class="muted small" id="xml-zone-detail">In Final Cut, put markers on the timeline, then choose File&nbsp;›&nbsp;Export&nbsp;XML… and drop the <b>.fcpxmld</b> it saves.</p>
+            <p class="muted small">Optional: the markers set the cue's Intro, Build, Hit, Tail and End.</p>
+          </div>
+          <div class="xml-done" aria-hidden="true">✓</div>
+        </div>
       </div>
 
       <div class="transport">
