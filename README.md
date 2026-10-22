@@ -15,7 +15,9 @@ No install step and no dependencies; you just need Node.
 npm start            # or: node serve.mjs [port]
 ```
 
-Then `npm run chrome` (or open <http://127.0.0.1:8000/> yourself). Chrome is
+Then `npm run chrome`, which opens a separate Chrome window with a new, empty
+profile each time, so you see a first run with no autosave or granted
+permissions, as a new user would (or open <http://127.0.0.1:8000/> yourself). Chrome is
 the supported browser for now: it can save projects and renders straight into
 a chosen folder, and drag and drop of Final Cut's `.fcpxmld` package has only
 been designed for it. Safari (`npm run safari`) is untested. Opening

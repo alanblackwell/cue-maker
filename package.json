@@ -8,6 +8,6 @@
     "start": "node serve.mjs",
     "test": "node --test test/*.test.js",
     "safari": "open -a Safari http://127.0.0.1:8000/",
-    "chrome": "open -a 'Google Chrome' http://127.0.0.1:8000/"
+    "chrome": "open -na 'Google Chrome' --args --user-data-dir=\"$(mktemp -d -t cue-maker-chrome)\" --no-first-run --no-default-browser-check http://127.0.0.1:8000/"
   }
 }
