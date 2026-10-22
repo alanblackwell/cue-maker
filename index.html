@@ -73,8 +73,14 @@
       <section>
         <h2>Music</h2>
         <div class="field">
-          <label for="mood">Mood</label>
-          <select id="mood"></select>
+          <label id="style-label">Style <output id="style-out"></output></label>
+          <canvas id="style" class="stylepad" tabindex="0" aria-labelledby="style-label"
+            title="Drag towards a composer to sound more like them; past a name to exaggerate them"></canvas>
+        </div>
+        <div class="field">
+          <label for="sour">Sweet / sour <output id="sour-out"></output></label>
+          <input type="range" id="sour" min="0" max="1" step="0.01">
+          <div class="scale-labels muted"><span>sweet</span><span>sour</span></div>
         </div>
         <div class="field">
           <label for="tempo">Tempo <output id="tempo-out"></output></label>

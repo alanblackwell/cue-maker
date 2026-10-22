@@ -1,13 +1,14 @@
 import { getLog, note } from './errors.js';
 import { APP_VERSION } from './version.js';
 import { FRAME_RATES, secondsToTimecode, timecodeToSeconds, snapToFrame } from './timecode.js';
-import { generate, intensityAt, LAYERS, LAYER_LABELS, SEED_KEYS, POINT_KEYS, MOODS } from './generator.js';
+import { generate, intensityAt, describeStyle, LAYERS, LAYER_LABELS, SEED_KEYS, POINT_KEYS } from './generator.js';
 import { parseFcpxml, assignMarkersToPoints } from './fcpxml.js';
 import { defaultProject, migrateProject, serializeProject } from './project.js';
 import { randomSeed } from './rng.js';
 import { Transport } from './transport.js';
 import { SketchPlayer } from './sketch.js';
 import { Timeline } from './timeline.js';
+import { StylePad } from './stylepad.js';
 import { renderCue, peakOf, RENDER_RATE } from './render.js';
 import { encodeWav } from './wav.js';
 
@@ -19,14 +20,17 @@ const MAX_MAKEUP_GAIN = 4;
 const POINT_LABELS = { start: 'Intro / Lead-in', build: 'Build', hit: 'Climax / Hit', tail: 'Tail / Outro', end: 'End' };
 const POINT_COLORS = { start: '--phase-intro', build: '--phase-build', hit: '--phase-climax', tail: '--phase-tail', end: '--muted' };
 const LAYER_ROWS = [
-  { label: 'Harmony', seed: 'harmony' },
-  { label: LAYER_LABELS.pad, layer: 'pad', seed: 'pad' },
+  { label: 'Chords', seed: 'harmony' },
+  { label: LAYER_LABELS.piano, layer: 'piano' },
+  { label: LAYER_LABELS.tune, layer: 'tune', seed: 'tune' },
+  { label: LAYER_LABELS.strings, layer: 'strings' },
   { label: LAYER_LABELS.bass, layer: 'bass' },
   { label: LAYER_LABELS.pulse, layer: 'pulse', seed: 'pulse' },
   { label: LAYER_LABELS.perc, layer: 'perc', seed: 'perc' },
-  { label: LAYER_LABELS.riser, layer: 'riser', seed: 'riser' },
+  { label: LAYER_LABELS.electronics, layer: 'electronics', seed: 'electronics' },
   { label: LAYER_LABELS.impact, layer: 'impact' },
   { label: LAYER_LABELS.tail, layer: 'tail' },
+  { label: 'Surprises', seed: 'surprise' },
 ];
 
 let doc = loadAutosave() ?? defaultProject();
@@ -46,6 +50,14 @@ const timeline = new Timeline($('#timeline'), {
   onMovePoint: (key, t) => setPoint(key, t),
   onDragEnd: () => note('info', 'moved points', doc.points),
   formatTime: t => tc(t),
+});
+const stylePad = new StylePad($('#style'), {
+  onChange: point => {
+    doc.music.style = point;
+    updateOutputs();
+    changed();
+  },
+  onDragEnd: point => note('info', 'moved style', point),
 });
 
 const rate = () => ({ num: doc.timing.fpsNum, den: doc.timing.fpsDen });
@@ -73,7 +85,7 @@ function changed() {
     markers: doc.markers,
     mutes: doc.mutes,
     duration: transport.duration,
-    intensity: t => intensityAt(t, doc.points, doc.music),
+    intensity: t => intensityAt(t, doc.points, doc.music, result.style),
   });
   updateReadouts();
   scheduleAutosave();
@@ -117,7 +129,6 @@ function buildControls() {
   $('#version').textContent = `v${APP_VERSION}`;
 
   for (const r of FRAME_RATES) $('#fps').append(new Option(r.label, r.id));
-  for (const [id, m] of Object.entries(MOODS)) $('#mood').append(new Option(`${m.label} · ${m.key}`, id));
 
   const pointsBody = $('#points');
   for (const k of POINT_KEYS) {
@@ -185,7 +196,7 @@ function buildControls() {
       updateOutputs();
       changed();
     });
-  music('#mood', 'mood', String);
+  music('#sour', 'sour');
   music('#tempo', 'tempo');
   music('#energy', 'energy');
   music('#curve', 'buildCurve');
@@ -221,7 +232,8 @@ function syncControls() {
   $('#fps').value = fps.id;
   $('#tc-start').value = t.tcStart;
   $('#tc-start').classList.remove('invalid');
-  $('#mood').value = doc.music.mood;
+  stylePad.set(doc.music.style);
+  $('#sour').value = doc.music.sour;
   $('#tempo').value = doc.music.tempo;
   $('#energy').value = doc.music.energy;
   $('#curve').value = doc.music.buildCurve;
@@ -233,12 +245,19 @@ function updateOutputs() {
   $('#energy-out').textContent = `${Math.round(doc.music.energy * 100)}%`;
 }
 
+const SURPRISE_COUNT = n => (n === 0 ? 'no surprises' : n === 1 ? '1 surprise' : `${n} surprises`);
+
 function updateReadouts() {
   for (const k of POINT_KEYS) $(`[data-jump="${k}"]`).textContent = tc(doc.points[k]);
-  const { bpm, bars } = result.tempo;
+  const { bpm, bars, beatsPerBar } = result.tempo;
+  const counting = beatsPerBar === 3
+    ? 'counting in threes, as Satie and Ravel often do'
+    : 'counting in fours, as Jóhannsson usually does';
   $('#tempo-readout').textContent =
     `Tempo fitted to ${bpm.toFixed(1)} BPM so the hit lands on the first beat of bar ${bars + 1} ` +
-    `(${bars} bar${bars === 1 ? '' : 's'} of 4/4 from the cue start).`;
+    `(${bars} bar${bars === 1 ? '' : 's'} from the cue start, ${counting}).`;
+  $('#style-out').textContent = describeStyle(result.style.weights);
+  $('#sour-out').textContent = SURPRISE_COUNT(result.surprises.length);
   for (const row of LAYER_ROWS) {
     if (row.layer) $(`[data-play="${row.layer}"]`).checked = !doc.mutes[row.layer];
     if (row.seed) {
@@ -502,7 +521,7 @@ function bugReport() {
     video: transport.hasVideo
       ? { name: doc.video.name, duration: video.duration, width: video.videoWidth, height: video.videoHeight, currentTime: video.currentTime }
       : null,
-    generated: { tempo: result.tempo, buildBar: result.buildBar, tailT: result.tailT, counts },
+    generated: { tempo: result.tempo, buildBar: result.buildBar, tailT: result.tailT, surprises: result.surprises, counts },
     project: doc,
     log: getLog(),
   };

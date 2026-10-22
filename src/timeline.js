@@ -13,6 +13,8 @@ const CURVE_BOT = 108;
 const LANE_TOP = 116;
 const LANE_H = 15;
 const GRAB_PX = 7;
+// Short, repeated events, drawn as ticks rather than bars.
+const TICKS = new Set(['pulse', 'harp', 'perc', 'snare']);
 const RULER_STEPS = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
 
 const PHASES = [
@@ -211,7 +213,7 @@ export class Timeline {
       const x = this.xOf(ev.t);
       const width = ev.dur * pps;
       c.globalAlpha = m.mutes[ev.layer] ? 0.2 : 0.6;
-      if (width > 3 && ev.type !== 'pulse' && ev.type !== 'perc') c.fillRect(x, y + 3, width, LANE_H - 6);
+      if (width > 3 && !TICKS.has(ev.type)) c.fillRect(x, y + 3, width, LANE_H - 6);
       else c.fillRect(x, y + 2, 1.5, LANE_H - 4);
     }
     c.globalAlpha = 1;

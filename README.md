@@ -48,7 +48,8 @@ tools that honour it (Pro Tools, Logic and others) can spot them to timecode.
 
 | File | Role |
 | --- | --- |
-| `src/generator.js` | The compositional rules. A pure function from the project document to timed events. Tempo is fitted so the hit lands on a downbeat. |
+| `src/generator.js` | The compositional rules. A pure function from the project document to timed events. Tempo is fitted so the hit lands on a downbeat. Style is a point among three reference composers; see [docs/style-space.md](docs/style-space.md). |
+| `src/stylepad.js` | The style pad: drag a point towards Satie, Ravel or Jóhannsson, or past one to exaggerate them. |
 | `src/instruments.js` | Web Audio synthesis for each event type, shared by sketch and final render; `QUALITY` sets the difference. |
 | `src/sketch.js` | Real-time playback slaved to the video, using a look-ahead scheduler with drift correction. |
 | `src/render.js` | Final render through `OfflineAudioContext` at 48 kHz. |
@@ -60,8 +61,11 @@ tools that honour it (Pro Tools, Logic and others) can spot them to timecode.
 | `src/project.js` | The saved project format and its versioning. |
 | `src/main.js` | UI wiring, files, rendering, bug reports. |
 
-Everything random is seeded per layer (`harmony`, `pad`, `pulse`, `perc`,
-`riser`), so a project file reproduces a cue exactly. **New variation**
+Everything random is seeded per layer (`harmony`, `tune`, `pulse`, `perc`,
+`electronics`, `surprise`), and each choice is keyed by its bar's position
+counted back from the hit, so a project file reproduces a cue exactly and small
+edits make small changes. **Sweet / sour** sets how many of the surprise
+seed's surprises are let in. **New variation**
 re-rolls the unlocked layers.
 
 ## Reporting problems
@@ -76,9 +80,11 @@ The repository root is the site; there's no build step. After pushing, enable
 Pages for the `main` branch, serving from `/ (root)`. `.nojekyll` stops GitHub
 from processing the files.
 
-## Known limits (v0.1)
+## Known limits (v0.2)
 
 - Constant fitted tempo; no accelerando through the build yet.
 - FCPXML: retimed clips and secondary-storyline offsets aren't handled.
 - Instrument levels and the synthetic reverb are first guesses, to be tuned by ear.
+- The piano is a soft electric-piano stand-in, not a real piano sound. A real piano would mean a better synthesiser, licensed samples or the user's own recordings.
+- The key is fixed at D.
 - Peak normalisation is sample-peak to −1 dBFS, not true-peak or loudness.

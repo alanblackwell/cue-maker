@@ -9,3 +9,7 @@ media/
 *.wav
 *.fcpxml
 *.fcpxmld/
+
+# Emacs lock and backup files
+.#*
+*~

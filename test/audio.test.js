@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FakeContext } from './fake-webaudio.js';
-import { generate, LAYERS, MOODS } from '../src/generator.js';
+import { generate, LAYERS, COMPOSERS } from '../src/generator.js';
 import { defaultProject } from '../src/project.js';
 
 globalThis.OfflineAudioContext = FakeContext;
@@ -10,10 +10,11 @@ const { createMixGraph, playEvent, QUALITY } = await import('../src/instruments.
 const { renderCue } = await import('../src/render.js');
 const { SketchPlayer } = await import('../src/sketch.js');
 
-test('every event plays without Web Audio errors, for every mood and quality', () => {
-  for (const mood of Object.keys(MOODS)) {
+test('every event plays without Web Audio errors, for every style and quality', () => {
+  for (const mood of [[0, 0], ...COMPOSERS.map(c => c.at.map(v => v * 1.85))]) {
     const doc = defaultProject();
-    doc.music.mood = mood;
+    doc.music.style = mood;
+    doc.music.sour = 1;
     const { events } = generate(doc);
     for (const q of [QUALITY.sketch, QUALITY.final]) {
       const ctx = new FakeContext();

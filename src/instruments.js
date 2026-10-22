@@ -12,8 +12,8 @@ export const QUALITY = {
   final: { unison: 5, detune: 11, irSeconds: 6.5, oversample: '4x', limiter: false },
 };
 
-const LEVEL = { pad: 0.5, bass: 0.55, pulse: 0.35, perc: 0.8, riser: 0.45, impact: 0.9, tail: 0.5 };
-const SEND = { pad: 0.45, bass: 0.08, pulse: 0.22, perc: 0.3, riser: 0.35, impact: 0.5, tail: 0.85 };
+const LEVEL = { piano: 0.6, tune: 0.55, strings: 0.45, bass: 0.55, pulse: 0.35, perc: 0.7, electronics: 0.45, impact: 0.9, tail: 0.5 };
+const SEND = { piano: 0.35, tune: 0.4, strings: 0.45, bass: 0.08, pulse: 0.25, perc: 0.3, electronics: 0.35, impact: 0.5, tail: 0.85 };
 const OUT_LEVEL = 0.6;
 const MIN = 0.0001; // exponential ramps cannot reach zero
 
@@ -120,9 +120,9 @@ function sustainEnv(ctx, t0, t1, peak, attack, release) {
   return g;
 }
 
-function pad(ctx, ev, t0, out, q, track) {
+function strings(ctx, ev, t0, out, q, track) {
   const t1 = t0 + ev.dur;
-  const attack = Math.min(1.6, ev.dur * 0.4);
+  const attack = ev.attack ?? Math.min(1.6, ev.dur * 0.4);
   const release = Math.min(2.2, Math.max(0.4, ev.dur * 0.5));
   const cutoff = 450 + 2600 * ev.vel;
   const filt = ctx.createBiquadFilter();
@@ -299,7 +299,130 @@ function tail(ctx, ev, t0, out, q, track) {
   for (const n of ev.notes) unison(ctx, mtof(n), 'sawtooth', t0, fadeEnd + 0.05, filt, q, track);
 }
 
-const INSTRUMENTS = { pad, bass, pulse, perc, riser, swell, impact, stab, tail };
+// A soft electric piano (Rhodes-like FM) standing in for the piano: a sine
+// tone modulated by another at the same pitch, with the modulation dying away
+// so each note starts bright and mellows, plus a short bell-like "tine" at the
+// attack. It doesn't pretend to be a real piano, so it doesn't sound like a bad
+// one. A real piano would come from samples or the user's own recordings.
+function piano(ctx, ev, t0, out, q, track) {
+  const peak = ev.vel / Math.sqrt(ev.notes.length);
+  ev.notes.forEach((n, i) => {
+    const f = mtof(n);
+    const ring = Math.min(4.5, Math.max(0.9, 4.5 - (n - 36) * 0.06)); // lower notes ring longer
+    const t1 = t0 + Math.min(ev.dur, ring);
+    const end = t1 + 0.4;
+    const amp = ctx.createGain();
+    amp.gain.setValueAtTime(0, t0);
+    amp.gain.linearRampToValueAtTime(peak, t0 + 0.003);
+    amp.gain.setTargetAtTime(0, t0 + 0.003, ring / 6.9);
+    amp.gain.setTargetAtTime(0, t1, 0.08); // damper
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = Math.max(-0.5, Math.min(0.5, (n - 62) / 40)) + (i % 2 ? 0.05 : -0.05);
+    amp.connect(pan).connect(out);
+    const index = 1.2 + 2.3 * ev.vel; // brightness of the attack
+    // [modulator ratio, starting index, index decay time constant, level]
+    for (const [ratio, idx, fall, level] of [[1, index, 0.35, 1], [14, 0.5 + ev.vel, 0.025, 0.12]]) {
+      const car = ctx.createOscillator();
+      car.frequency.value = f;
+      car.detune.value = level < 1 ? 0 : 3; // a touch of warmth against the tine
+      const mod = ctx.createOscillator();
+      mod.frequency.value = f * ratio;
+      const depth = ctx.createGain();
+      depth.gain.setValueAtTime(idx * f * ratio, t0);
+      depth.gain.setTargetAtTime(0.15 * f * ratio * (level < 1 ? 0 : 1), t0, fall);
+      mod.connect(depth).connect(car.frequency);
+      const g = ctx.createGain();
+      g.gain.value = level;
+      car.connect(g).connect(amp);
+      run(ctx, mod, t0, end, track);
+      run(ctx, car, t0, end, track);
+    }
+  });
+}
+
+function harp(ctx, ev, t0, out, q, track) {
+  const f = mtof(ev.note);
+  const t1 = t0 + 1.8;
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.setValueAtTime(Math.min(12000, f * 6), t0);
+  filt.frequency.exponentialRampToValueAtTime(Math.min(12000, f * 1.5), t1);
+  const amp = ctx.createGain();
+  amp.gain.setValueAtTime(0, t0);
+  amp.gain.linearRampToValueAtTime(ev.vel, t0 + 0.003);
+  amp.gain.exponentialRampToValueAtTime(MIN, t1);
+  filt.connect(amp).connect(out);
+  for (const [ratio, type, level] of [[1, 'triangle', 1], [2, 'sine', 0.3]]) {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.value = f * ratio;
+    const g = ctx.createGain();
+    g.gain.value = level;
+    o.connect(g).connect(filt);
+    run(ctx, o, t0, t1, track);
+  }
+}
+
+function snare(ctx, ev, t0, out, q, track) {
+  const noise = noiseSource(ctx);
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 1400;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0, t0);
+  ng.gain.linearRampToValueAtTime(ev.vel * 0.6, t0 + 0.002);
+  ng.gain.exponentialRampToValueAtTime(MIN, t0 + 0.16);
+  noise.connect(hp).connect(ng).connect(out);
+  run(ctx, noise, t0, t0 + 0.18, track);
+  const body = ctx.createOscillator();
+  body.frequency.setValueAtTime(200, t0);
+  body.frequency.exponentialRampToValueAtTime(160, t0 + 0.06);
+  const bg = ctx.createGain();
+  bg.gain.setValueAtTime(ev.vel * 0.5, t0);
+  bg.gain.exponentialRampToValueAtTime(MIN, t0 + 0.07);
+  body.connect(bg).connect(out);
+  run(ctx, body, t0, t0 + 0.08, track);
+}
+
+// Low brass; with a high drive it becomes the distorted electronic buzz.
+function brass(ctx, ev, t0, out, q, track, drive = 1.5) {
+  const t1 = t0 + ev.dur;
+  const attack = Math.min(0.25, ev.dur * 0.3);
+  const release = 0.6;
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.Q.value = 1.2;
+  filt.frequency.setValueAtTime(180, t0);
+  filt.frequency.exponentialRampToValueAtTime(200 + 1800 * ev.vel * (drive > 3 ? 2 : 1), t0 + attack * 2 + 0.01);
+  const amp = sustainEnv(ctx, t0, t1, ev.vel / Math.sqrt(ev.notes.length), attack, release);
+  filt.connect(saturator(ctx, drive, q)).connect(amp).connect(out);
+  for (const n of ev.notes) unison(ctx, mtof(n), 'sawtooth', t0, t1 + release, filt, q, track);
+}
+
+const buzz = (ctx, ev, t0, out, q, track) => brass(ctx, ev, t0, out, q, track, 6);
+
+// A sustained singing line for the tune, with a little vibrato.
+function lead(ctx, ev, t0, out, q, track) {
+  const t1 = t0 + ev.dur;
+  const attack = Math.min(0.12, ev.dur * 0.3);
+  const release = 0.35;
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.value = 1200 + 2000 * ev.vel;
+  const amp = sustainEnv(ctx, t0, t1, ev.vel, attack, release);
+  filt.connect(amp).connect(out);
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 5.2;
+  const depth = ctx.createGain();
+  depth.gain.value = 14; // cents
+  lfo.connect(depth);
+  run(ctx, lfo, t0, t1 + release, track);
+  for (const o of unison(ctx, mtof(ev.note), 'sawtooth', t0, t1 + release, filt, q, track, Math.min(3, q.unison))) {
+    depth.connect(o.detune);
+  }
+}
+
+const INSTRUMENTS = { strings, piano, harp, snare, brass, buzz, lead, bass, pulse, perc, riser, swell, impact, stab, tail };
 
 // Per-layer gains feeding a shared reverb and output. `mutes` silences layers;
 // for stems, the renderer mutes everything but one layer.

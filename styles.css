@@ -169,7 +169,7 @@ input.invalid { border-color: var(--phase-climax); }
 .timeline {
   display: block;
   width: 100%;
-  height: 230px;
+  height: 260px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -217,6 +217,8 @@ table { border-collapse: collapse; width: 100%; }
 .field label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
 .field select, .field input[type="range"] { width: 100%; }
 output { color: var(--muted); font-variant-numeric: tabular-nums; }
+.stylepad { display: block; width: 100%; height: 190px; touch-action: none; cursor: crosshair; border-radius: 6px; }
+.stylepad:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .scale-labels { display: flex; justify-content: space-between; font-size: 11px; }
 
 .layers th { font-weight: normal; font-size: 11px; color: var(--muted); text-align: center; }
