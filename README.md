@@ -37,9 +37,14 @@ npm test             # logic, file formats and a simulated Web Audio run
 3. Export a proxy of the same timeline as **H.264** (Chrome can't play
    ProRes).
 4. In Cue Maker, drop the proxy on the video window and the `.fcpxmld` (or
-   `.fcpxml`) on the XML panel beside it; both together works too. The XML
+   `.fcpxml`, or a `.zip` of either, as mail programs send them) on the XML
+   panel beside it; both together works too. The XML
    panel shrinks to a tick once markers are loaded (hover it for details),
    and also sets the frame rate and start timecode.
+5. Markers show as blue triangles on the timeline ruler. If the guess from
+   their names or order is wrong (leftover clip markers often get in the
+   way), click a marker and choose which phase point it should be. Points it
+   passes are pushed along, keeping their spacing, so they stay in order.
 
 Rendered WAVs carry a Broadcast WAV time reference for the cue's start, so
 tools that honour it (Pro Tools, Logic and others) can spot them to timecode.
@@ -55,6 +60,7 @@ tools that honour it (Pro Tools, Logic and others) can spot them to timecode.
 | `src/render.js` | Final render through `OfflineAudioContext` at 48 kHz. |
 | `src/wav.js` | 16/24-bit WAV with TPDF dither and a `bext` chunk. |
 | `src/fcpxml.js` | Reads markers from FCPXML and maps them to phase points. |
+| `src/unzip.js` | Pulls the FCPXML out of a zipped `.fcpxmld` (as sent by email). |
 | `src/timecode.js` | Rational frame rates, drop-frame timecode. |
 | `src/transport.js` | One clock: the video, or an internal clock when there's no picture. |
 | `src/timeline.js` | The canvas timeline and its interactions. |

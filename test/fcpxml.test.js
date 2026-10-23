@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFcpxml, parseXml, assignMarkersToPoints } from '../src/fcpxml.js';
+import { parseFcpxml, parseXml, assignMarkersToPoints, placePoint } from '../src/fcpxml.js';
 
 const SAMPLE = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE fcpxml>
@@ -77,4 +77,30 @@ test('unnamed markers fill points in order around named ones', () => {
 
 test('rejects files without a sequence', () => {
   assert.throws(() => parseFcpxml('<fcpxml version="1.10"><resources/></fcpxml>'), /No sequence/);
+});
+
+test('placing a point between its neighbours moves only that point', () => {
+  const { points, moved } = placePoint(PREVIOUS, 'hit', 20);
+  assert.deepEqual(points, { ...PREVIOUS, hit: 20 });
+  assert.deepEqual(moved, []);
+});
+
+test('placing a point past its neighbours pushes them along, keeping their spacing', () => {
+  // Gary's case: points set from leftover markers, then Tail put on a late one.
+  const early = { start: 6.5, build: 6.9, hit: 16, tail: 17.8, end: 45.6 };
+  const { points, moved } = placePoint(early, 'tail', 119.8);
+  assert.equal(points.tail, 119.8);
+  assert.ok(Math.abs(points.end - (119.8 + 27.8)) < 1e-9);
+  assert.deepEqual(moved, ['end']);
+
+  const back = placePoint(PREVIOUS, 'build', 1).points;
+  assert.equal(back.build, 1);
+  assert.equal(back.start, 0); // pushed to 1 - 8, then kept at zero
+});
+
+test('pushed points are squeezed in before the end of the video', () => {
+  const { points } = placePoint(PREVIOUS, 'hit', 59, 60);
+  assert.equal(points.hit, 59);
+  assert.equal(points.end, 60);
+  assert.ok(points.tail > points.hit && points.tail < points.end);
 });

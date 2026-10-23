@@ -41,7 +41,7 @@
         <div class="xml-zone drop-zone" id="xml-zone" data-state="empty">
           <div class="xml-empty">
             <p class="drop-title" id="xml-zone-title">Drop the FCPXML file here</p>
-            <p class="muted small" id="xml-zone-detail">In Final Cut, put markers on the timeline, then choose File&nbsp;›&nbsp;Export&nbsp;XML… and drop the <b>.fcpxmld</b> it saves.</p>
+            <p class="muted small" id="xml-zone-detail">In Final Cut, put markers on the timeline, then choose File&nbsp;›&nbsp;Export&nbsp;XML… and drop the <b>.fcpxmld</b> it saves (or a .zip of it).</p>
             <p class="muted small">Optional: the markers set the cue's Intro, Build, Hit, Tail and End.</p>
           </div>
           <div class="xml-done" aria-hidden="true">✓</div>
@@ -60,13 +60,15 @@
       </div>
 
       <canvas id="timeline" class="timeline"></canvas>
-      <p class="hint muted">Drag the phase lines to move them · click or drag elsewhere to scrub · Space plays · ← → step one frame</p>
+      <p class="hint muted">Drag the phase lines to move them · click a blue marker to make it a phase point · click or drag elsewhere to scrub · Space plays · ← → step one frame</p>
     </section>
 
     <aside class="panel">
       <section>
         <h2>Structure</h2>
         <table class="points"><tbody id="points"></tbody></table>
+        <label class="inline" title="Untick for music that swells to its peak and recedes with nothing hitting, like a temp track that just holds and evolves. Nearer Jóhannsson it becomes a slowly changing soundscape.">
+          <input type="checkbox" id="hit"> Hit at the climax</label>
         <p id="tempo-readout" class="readout"></p>
       </section>
 
@@ -120,6 +122,11 @@
     </aside>
   </main>
 
+  <div id="marker-menu" class="marker-menu" popover>
+    <p id="marker-menu-title" class="marker-menu-title"></p>
+    <p class="muted small">Make this marker the…</p>
+    <div id="marker-menu-items" class="marker-menu-items"></div>
+  </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="src/main.js"></script>
 </body>

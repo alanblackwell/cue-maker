@@ -9,6 +9,11 @@
 // keyed by its bar's position relative to the hit. So moving the start point,
 // or dragging a control, changes the music locally instead of re-rolling it.
 //
+// With music.hit off, nothing hits: the cue swells to its peak at the Hit point
+// and recedes. Nearer Jóhannsson it then becomes a slowly evolving soundscape
+// in free time, using devices heard in a temp track ("Escape"); see
+// docs/style-space.md.
+//
 // Style comes from a point in a plane holding three reference composers; see
 // docs/style-space.md. Theory terms stay in this file: the interface only ever
 // shows the composers' names.
@@ -67,6 +72,7 @@ const SETTINGS = {
   boom: [0, 0.3, 1, 0, 1.2],
   tutti: [0.05, 1, 0.4, 0, 1.2],
   brass: [0, 0.5, 1, 0, 1.2],
+  scape: [0, 0, 1, 0, 1.2], // free-time soundscape, when there's no hit
 };
 const AUDIBLE = 0.08; // layer levels below this are left out
 
@@ -136,6 +142,8 @@ const SURPRISES = {
   johannsson: ['cluster', 'brassGrind', 'distort'],
 };
 const HIT_SURPRISES = { satie: 'sideslip', ravel: 'twoKeys', johannsson: 'cluster' };
+// Without a hit, Jóhannsson can also leave two high notes rubbing together.
+const NO_HIT_SURPRISES = { ...SURPRISES, johannsson: [...SURPRISES.johannsson, 'rub'] };
 const SITE_RATE = 0.45; // share of bars that can hold a surprise at full sour
 
 // Chord-tone indices for the repeating figure (3 = root an octave up).
@@ -255,6 +263,11 @@ export function generate(doc) {
   const { share } = style;
   const bpb = style.beatsPerBar;
   const tempo = fitTempo(p.start, p.hit, music.tempo, bpb);
+  const noHit = music.hit === false;
+  // How far the soundscape takes over from the changing chords (strings, bass)
+  // and the beat (figure, snare).
+  const scape = noHit ? style.scape : 0;
+  const chordsLeft = 1 - clamp(scape, 0, 1);
   const { bars, barDur, beatDur } = tempo;
   const scale = SCALES.find(s => style.bright >= s.min).steps;
 
@@ -289,7 +302,7 @@ export function generate(doc) {
     const atHit = b === bars;
     if (u >= sour * (atHit ? 0.9 : SITE_RATE)) continue;
     const who = weightedPick(r, Object.entries(share).map(([id, s]) => [id, s]));
-    let kind = atHit ? HIT_SURPRISES[who] : pick(r, SURPRISES[who]);
+    let kind = atHit ? HIT_SURPRISES[who] : pick(r, (noHit ? NO_HIT_SURPRISES : SURPRISES)[who]);
     if (kind === 'grind' && (rel(b) < -4 || rel(b) >= 0)) kind = 'twoKeys';
     surprises.set(b, kind);
   }
@@ -406,13 +419,13 @@ export function generate(doc) {
   }
 
   // Strings: sustained chords, plus any sour clusters.
-  if (style.strings >= AUDIBLE) {
+  if (style.strings * chordsLeft >= AUDIBLE) {
     const pivot = spans.findIndex(s => s.b0 >= hitBeat);
     const voiced = voiceFrom(spans.map(s => s.tones), pivot < 0 ? spans.length - 1 : pivot, 64);
     spans.forEach((s, i) => {
       const notes = voiced[i];
       const t = beatT(s.b0), dur = (s.b1 - s.b0) * beatDur;
-      const v = vel(t + dur / 2) * 0.8 * style.strings;
+      const v = vel(t + dur / 2) * 0.8 * style.strings * chordsLeft;
       add('strings', 'strings', t, dur, { notes, vel: v });
       if (s.clash) add('strings', 'strings', t, dur, { notes: notes.map(n => n + s.clash), vel: v * 0.6 });
     });
@@ -426,6 +439,12 @@ export function generate(doc) {
       add('strings', 'strings', t, dur * (b === bars ? 2 : 1), { notes: [base, base + 1, base + 2, base + 3, base + 5], vel: vel(t) * 0.55, attack: dur * 0.7 });
     }
     if (kind === 'brassGrind') add('bass', 'brass', t, dur, { notes: [lowNote(c.root), lowNote(c.root) + 1], vel: vel(t) * 0.7 });
+    if (kind === 'rub') {
+      // Two high notes a semitone apart, fading in and held.
+      const n = scaleNote(scale, 4) + 24;
+      const len = Math.min(barDur * 2, tailT - t);
+      add('strings', 'strings', t, len, { notes: [n, n + 1], vel: vel(t) * 0.35, attack: len * 0.6 });
+    }
     if (kind === 'distort') add('electronics', 'buzz', t, dur, { notes: [lowNote(c.root) + 12, lowNote(c.root) + 18], vel: vel(t) * 0.5 });
     if (kind === 'grind') {
       // La Valse breaking up: harsh accented chords on every beat.
@@ -438,20 +457,20 @@ export function generate(doc) {
   }
 
   // Bass: a drone through the intro if the style holds one, then chord roots.
-  if (style.bass >= AUDIBLE) {
+  if (style.bass * chordsLeft >= AUDIBLE) {
     const pedalEnd = style.drone >= 0.5 ? buildBeat : 0;
     if (pedalEnd > 0) add('bass', 'bass', p.start, beatT(pedalEnd) - p.start, { note: ROOT - 12, vel: vel(p.start) * style.bass });
     for (const s of spans) {
       if (s.b1 <= pedalEnd) continue;
       const b0 = Math.max(s.b0, pedalEnd);
       const t = beatT(b0);
-      add('bass', 'bass', t, (s.b1 - b0) * beatDur, { note: lowNote(s.root), vel: vel(t) * style.bass });
+      add('bass', 'bass', t, (s.b1 - b0) * beatDur, { note: lowNote(s.root), vel: vel(t) * style.bass * chordsLeft });
     }
   }
 
   // Pulse: a repeating figure, on harp nearer Ravel and on a soft synth nearer
   // Jóhannsson, that gets busier as the intensity rises.
-  if (style.figure >= AUDIBLE) {
+  if (style.figure * chordsLeft >= AUDIBLE) {
     const pattern = pick(rng('pulse', 'pattern'), PULSE_PATTERNS);
     const harp = share.ravel > share.johannsson;
     const from = harp ? Math.floor(buildBar / 2) : buildBar;
@@ -473,7 +492,7 @@ export function generate(doc) {
           let note = (idx === 3 ? c.tones[0] + 12 : c.tones[idx]) + 12;
           if (c.clash && step % 2 === 1) note += c.clash;
           const quiet = b < buildBar ? 0.6 : 1;
-          add('pulse', harp ? 'harp' : 'pulse', t, (beatDur / sub) * 0.9, { note, vel: vel(t) * quiet * style.figure * (s === 0 ? 1 : 0.72) });
+          add('pulse', harp ? 'harp' : 'pulse', t, (beatDur / sub) * 0.9, { note, vel: vel(t) * quiet * style.figure * chordsLeft * (s === 0 ? 1 : 0.72) });
         }
       }
     }
@@ -481,7 +500,7 @@ export function generate(doc) {
 
   // Snare: Boléro's rhythm, from the very start if Ravel is strong, rising with
   // the intensity.
-  if (style.snare >= AUDIBLE) {
+  if (style.snare * chordsLeft >= AUDIBLE) {
     const from = style.snare >= 0.5 ? 0 : buildBar + Math.floor((bars - buildBar) / 2);
     const triplets = beatDur / 6 >= MIN_STEP;
     for (let b = from; b < bars; b++) {
@@ -491,14 +510,14 @@ export function generate(doc) {
       if (!triplets) times = times.filter(x => Number.isInteger(x * 2));
       for (const x of times) {
         const t = beatT(b * bpb + x);
-        add('perc', 'snare', t, 0.15, { vel: vel(t) * style.snare * (Number.isInteger(x) ? 0.8 : 0.55) });
+        add('perc', 'snare', t, 0.15, { vel: vel(t) * style.snare * chordsLeft * (Number.isInteger(x) ? 0.8 : 0.55) });
       }
     }
   }
 
   // Drums: low and heavy, entering halfway through the build and accelerating
   // into a fill.
-  if (style.drums >= AUDIBLE) {
+  if (style.drums >= AUDIBLE && !noHit) {
     const roll = rng('perc', 'roll')() < 0.5;
     const buildBars = bars - buildBar;
     if (buildBars >= 2) {
@@ -525,7 +544,7 @@ export function generate(doc) {
   }
 
   // Electronics: a riser into the hit, and a reverse-style swell that ends on it.
-  if (style.electronics >= AUDIBLE) {
+  if (style.electronics >= AUDIBLE && !noHit) {
     const rr = rng('electronics', 'riser');
     const riseBars = Math.min(bars - buildBar, rr() < 0.5 ? 4 : 8);
     const color = 0.3 + 0.5 * rr();
@@ -544,27 +563,78 @@ export function generate(doc) {
   const [h0, h1, h2] = hc.tones;
   const hitNotes = [h0 - 12, h0, h2, h0 + 12, h1 + 12, h2 + 12];
   const hitKind = surprises.get(bars);
-  if (style.boom >= AUDIBLE) add('impact', 'impact', p.hit, 3.5, { vel: energyGain * style.boom });
-  if (style.tutti >= AUDIBLE) {
+  if (style.boom >= AUDIBLE && !noHit) add('impact', 'impact', p.hit, 3.5, { vel: energyGain * style.boom });
+  if (style.tutti >= AUDIBLE && !noHit) {
     const notes = hitKind === 'twoKeys' ? [...hitNotes, ...hitNotes.slice(2).map(n => n + 6)]
       : hitKind === 'cluster' ? [...hitNotes, h0 + 13] : hitNotes;
     add('impact', 'stab', p.hit, Math.min(beatDur * 3, 2), { notes, vel: energyGain * style.tutti });
   }
-  if (style.brass >= AUDIBLE && tailT - p.hit > 0.3) {
+  if (style.brass >= AUDIBLE && !noHit && tailT - p.hit > 0.3) {
     add('bass', 'brass', p.hit, Math.min(barDur * 2, tailT - p.hit), { notes: [lowNote(h0), lowNote(h0) + 7], vel: energyGain * style.brass * 0.8 });
   }
 
+  if (scape >= AUDIBLE) soundscape({ p, scale, scape, vel, rng, add });
+
   // Tail: the home chord held (or left ringing on the piano) so the reverb
-  // rings out inside the file.
+  // rings out inside the file. The soundscape instead ends unresolved, on the
+  // note just below home, high over the low home note.
   if (p.end - tailT > 0.3) {
-    const notes = [h0 - 12, h0 + 12, h1 + 12, h2 + 12];
-    if (style.piano > 0.5) add('tail', 'piano', tailT, p.end - tailT, { notes, vel: energyGain * 0.6 * style.piano });
+    const notes = scape >= 0.5 ? [ROOT - 12, ROOT + 23] : [h0 - 12, h0 + 12, h1 + 12, h2 + 12];
+    if (scape >= 0.5) add('tail', 'tail', tailT, p.end - tailT, { notes, vel: energyGain * 0.5 * scape });
+    else if (style.piano > 0.5) add('tail', 'piano', tailT, p.end - tailT, { notes, vel: energyGain * 0.6 * style.piano });
     else add('tail', 'tail', tailT, p.end - tailT, { notes, vel: energyGain * 0.7 });
   }
 
   events.sort((a, b) => a.t - b.t);
   return {
+    noHit,
     events, tempo, buildBar, hitBeat, tailBeat, tailT, style, spans,
     surprises: [...surprises].map(([bar, kind]) => ({ bar, kind, t: barT(bar) })),
   };
+}
+
+// The soundscape, in free time (seconds, not bars), as heard in "Escape":
+// - breathing bass: the home note held low, rocking now and then to the note
+//   a major third below it and back;
+// - bloom: the home note spreading upwards, an octave at a time, through the
+//   build, and thinning out again through the tail;
+// - colour: single notes of the scale entering one by one over the held sound
+//   towards the peak, then withdrawn, last in first out.
+// Positions are fractions of each section, so moving a point stretches the
+// soundscape rather than re-rolling it.
+function soundscape({ p, scale, scape, vel, rng, add }) {
+  const low = ROOT - 12;
+  const level = t => vel(t) * scape;
+
+  const r = rng('harmony', 'breath');
+  for (let t = p.start, k = 0; t < p.end - 0.5; k++) {
+    const home = k % 2 === 0;
+    const len = Math.min(home ? 6 + 6 * r() : 3 + 3 * r(), p.end - t);
+    // Only rock once the build has begun; before that, hold.
+    const note = home || t < p.build ? low : low - 4;
+    add('bass', 'bass', t, len, { note, vel: level(t) * 0.9 });
+    t += len;
+  }
+
+  const span = p.hit - p.start, fade = p.end - p.tail;
+  const octaves = [ROOT + 12, ROOT, ROOT + 24, ROOT + 36];
+  const enter = [0.1, 0.3, 0.5, 0.75];
+  octaves.forEach((note, i) => {
+    const t = p.start + span * enter[i];
+    const off = p.tail + fade * (0.85 - 0.2 * i); // the last to come in is the first to go
+    add('strings', 'strings', t, off - t, { notes: [note], vel: level(t) * (0.5 - 0.07 * i), attack: Math.min(8, (off - t) * 0.4) });
+  });
+
+  const cr = rng('harmony', 'colour');
+  const steps = [6, 2, 4, 1, 5];
+  for (let i = steps.length - 1; i > 0; i--) {
+    const j = Math.floor(cr() * (i + 1));
+    [steps[i], steps[j]] = [steps[j], steps[i]];
+  }
+  const rise = p.hit - p.build, after = p.tail - p.hit;
+  [0.1, 0.4, 0.7].forEach((f, i) => {
+    const t = p.build + rise * f;
+    const off = p.hit + after * (1 - 0.35 * i);
+    add('strings', 'strings', t, off - t, { notes: [scaleNote(scale, steps[i]) + 12], vel: level(t) * 0.4, attack: Math.min(5, (off - t) * 0.4) });
+  });
 }

@@ -230,6 +230,36 @@ output { color: var(--muted); font-variant-numeric: tabular-nums; }
 
 progress { width: 100%; margin-top: 8px; accent-color: var(--accent); }
 
+.marker-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: 190px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
+}
+.marker-menu p { margin: 2px 4px 6px; }
+.marker-menu-title { font: 13px var(--font-mono); }
+.marker-menu-items { display: flex; flex-direction: column; }
+.marker-menu-items button {
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 5px 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.marker-menu-items button:hover:not(:disabled),
+.marker-menu-items button:focus-visible { background: var(--surface-2); outline: none; }
+.marker-menu-items button:disabled { cursor: default; }
+
 .toast {
   position: fixed;
   left: 50%;

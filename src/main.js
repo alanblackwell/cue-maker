@@ -2,7 +2,8 @@ import { getLog, note } from './errors.js';
 import { APP_VERSION } from './version.js';
 import { FRAME_RATES, secondsToTimecode, timecodeToSeconds, snapToFrame } from './timecode.js';
 import { generate, intensityAt, describeStyle, LAYERS, LAYER_LABELS, SEED_KEYS, POINT_KEYS } from './generator.js';
-import { parseFcpxml, assignMarkersToPoints } from './fcpxml.js';
+import { parseFcpxml, assignMarkersToPoints, placePoint } from './fcpxml.js';
+import { fcpxmlInZip } from './unzip.js';
 import { defaultProject, migrateProject, serializeProject } from './project.js';
 import { randomSeed } from './rng.js';
 import { Transport } from './transport.js';
@@ -49,6 +50,7 @@ const timeline = new Timeline($('#timeline'), {
   onSeek: t => transport.seek(t),
   onMovePoint: (key, t) => setPoint(key, t),
   onDragEnd: () => note('info', 'moved points', doc.points),
+  onMarkerClick: (marker, x, y) => showMarkerMenu(marker, x, y),
   formatTime: t => tc(t),
 });
 const stylePad = new StylePad($('#style'), {
@@ -99,6 +101,43 @@ function setPoint(key, t) {
     : doc.points[POINT_KEYS[i + 1]] - MIN_GAP;
   doc.points[key] = clamp(snapToFrame(t, rate()), lo, hi);
   changed();
+}
+
+// A clicked marker offers to become any of the phase points.
+function showMarkerMenu(marker, x, y) {
+  const menu = $('#marker-menu');
+  const t = snapToFrame(marker.t, rate());
+  const halfFrame = rate().den / rate().num / 2;
+  $('#marker-menu-title').textContent = `${marker.name || 'Marker'} · ${tc(t)}`;
+  const items = $('#marker-menu-items');
+  items.replaceChildren(...POINT_KEYS.map(k => {
+    const here = Math.abs(doc.points[k] - t) < halfFrame;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = `<span class="swatch" style="background: var(${POINT_COLORS[k]})"></span>${POINT_LABELS[k]}${here ? ' <span class="muted">✓ here</span>' : ''}`;
+    b.disabled = here;
+    b.addEventListener('click', () => {
+      menu.hidePopover();
+      assignMarker(marker, k, t);
+    });
+    return b;
+  }));
+  menu.showPopover();
+  const r = menu.getBoundingClientRect();
+  menu.style.left = `${clamp(x - r.width / 2, 8, innerWidth - r.width - 8)}px`;
+  menu.style.top = `${clamp(y + 10, 8, innerHeight - r.height - 8)}px`;
+  items.querySelector('button:not(:disabled)')?.focus();
+}
+
+function assignMarker(marker, key, t) {
+  const maxEnd = transport.hasVideo ? transport.duration : Infinity;
+  const { points, moved } = placePoint(doc.points, key, t, maxEnd);
+  doc.points = points;
+  note('info', 'assigned marker', { marker, key, points });
+  changed();
+  const pushed = moved.map(k => POINT_LABELS[k]).join(', ');
+  toast(`${POINT_LABELS[key]} is now at ${marker.name || 'the marker'}` +
+    (pushed ? `. Moved along to stay in order: ${pushed}.` : '.'));
 }
 
 let autosaveTimer = 0;
@@ -200,6 +239,11 @@ function buildControls() {
   music('#tempo', 'tempo');
   music('#energy', 'energy');
   music('#curve', 'buildCurve');
+  $('#hit').addEventListener('change', e => {
+    doc.music.hit = e.target.checked;
+    note('info', 'set hit', doc.music.hit);
+    changed();
+  });
 
   $('#reroll').addEventListener('click', () => {
     seedHistory.push({ ...doc.seeds });
@@ -237,6 +281,7 @@ function syncControls() {
   $('#tempo').value = doc.music.tempo;
   $('#energy').value = doc.music.energy;
   $('#curve').value = doc.music.buildCurve;
+  $('#hit').checked = doc.music.hit;
   updateOutputs();
 }
 
@@ -253,9 +298,10 @@ function updateReadouts() {
   const counting = beatsPerBar === 3
     ? 'counting in threes, as Satie and Ravel often do'
     : 'counting in fours, as Jóhannsson usually does';
-  $('#tempo-readout').textContent =
-    `Tempo fitted to ${bpm.toFixed(1)} BPM so the hit lands on the first beat of bar ${bars + 1} ` +
-    `(${bars} bar${bars === 1 ? '' : 's'} from the cue start, ${counting}).`;
+  $('#tempo-readout').textContent = result.noHit && result.style.scape >= 0.5
+    ? 'No hit: the music swells to its peak at the Climax point and recedes, in free time, as Jóhannsson often does.'
+    : `Tempo fitted to ${bpm.toFixed(1)} BPM so the ${result.noHit ? 'peak' : 'hit'} lands on the first beat of bar ${bars + 1} ` +
+      `(${bars} bar${bars === 1 ? '' : 's'} from the cue start, ${counting}).`;
   $('#style-out').textContent = describeStyle(result.style.weights);
   $('#sour-out').textContent = SURPRISE_COUNT(result.surprises.length);
   for (const row of LAYER_ROWS) {
@@ -353,7 +399,7 @@ function showDropZones() {
   $('#xml-zone-title').textContent = xmlError ? 'That XML didn\u2019t work' : 'Drop the FCPXML file here';
   $('#xml-zone-detail').innerHTML = xmlError
     ? escapeHtml(xmlError.message) + ' Drop another to try again.'
-    : 'In Final Cut, put markers on the timeline, then choose File&nbsp;›&nbsp;Export&nbsp;XML… and drop the <b>.fcpxmld</b> it saves.';
+    : 'In Final Cut, put markers on the timeline, then choose File&nbsp;›&nbsp;Export&nbsp;XML… and drop the <b>.fcpxmld</b> it saves (or a .zip of it).';
   zone.title = doc.xml && !xmlError
     ? `${doc.xml.markers} markers loaded from "${doc.xml.project || doc.xml.file}". Drop another XML here to replace them.`
     : '';
@@ -383,10 +429,12 @@ async function openProject(file) {
 // Drag and drop anywhere in the window; files go where their type belongs,
 // whichever zone they land on. Final Cut's .fcpxmld export is a
 // folder (a macOS package), which a file picker won't select, so dropped
-// folders are searched for the .fcpxml inside.
+// folders are searched for the .fcpxml inside. Mail zips that folder for
+// sending, so zips are searched too.
 const isVideo = f => f.type.startsWith('video/') || /\.(mov|mp4|m4v)$/i.test(f.name);
 const isFcpxml = f => /\.(fcpxml|xml)$/i.test(f.name);
 const isProject = f => /\.json$/i.test(f.name);
+const isZip = f => /\.zip$/i.test(f.name);
 
 const entryFile = entry => new Promise((resolve, reject) => entry.file(resolve, reject));
 
@@ -416,7 +464,7 @@ async function droppedFiles(dataTransfer) {
     if (entry.isDirectory) {
       const file = await fcpxmlInFolder(entry);
       if (file) files.push(file);
-      else problems.push(`no .fcpxml inside "${entry.name}"`);
+      else problems.push({ xml: true, text: `There's no Final Cut XML inside "${entry.name}".` });
     } else {
       files.push(await entryFile(entry));
     }
@@ -425,23 +473,51 @@ async function droppedFiles(dataTransfer) {
   return { files, problems };
 }
 
-async function handleDrop(dataTransfer) {
-  const { files, problems } = await droppedFiles(dataTransfer);
+// Swaps each dropped zip for the Final Cut XML inside it.
+async function unzipDropped(files, problems) {
+  const out = [];
+  for (const f of files) {
+    if (!isZip(f)) {
+      out.push(f);
+      continue;
+    }
+    try {
+      const xml = await fcpxmlInZip(f);
+      if (xml) out.push(xml);
+      else problems.push({ xml: true, text: `There's no Final Cut XML inside "${f.name}".` });
+    } catch (err) {
+      problems.push({ xml: true, text: `Couldn't open "${f.name}": ${err.message}.` });
+    }
+  }
+  return out;
+}
+
+// Problems with an XML (or anything dropped on the XML panel) stay on show in
+// that panel; others get a passing message.
+async function handleDrop(dataTransfer, onXmlZone) {
+  const dropped = await droppedFiles(dataTransfer);
+  const problems = dropped.problems;
+  const files = await unzipDropped(dropped.files, problems);
   const video = files.find(isVideo);
   const fcpxml = files.find(isFcpxml);
   const project = files.find(isProject);
   for (const f of files) {
     if ([video, fcpxml, project].includes(f)) continue;
     // A browser that hands over the .fcpxmld package as one opaque file.
-    if (/\.fcpxmld$/i.test(f.name)) problems.push(`this browser can't look inside "${f.name}". In Finder, right-click it, choose Show Package Contents, and drop the Info.fcpxml from there`);
-    else problems.push(`"${f.name}" isn't a video, FCPXML or project`);
+    if (/\.fcpxmld$/i.test(f.name)) problems.push({ xml: true, text: `This browser can't look inside "${f.name}". In Finder, right-click it, choose Show Package Contents, and drop the Info.fcpxml from there.` });
+    else problems.push({ xml: onXmlZone, text: `"${f.name}" isn't a video, a Final Cut XML or a Cue Maker project.` });
   }
   note('info', 'dropped files', { names: files.map(f => f.name), problems });
   // Project first, so a video or markers dropped with it apply on top.
   if (project) await openProject(project);
   if (video) await openVideo(video);
   if (fcpxml) await importFcpxml(fcpxml);
-  if (problems.length) toast(`Couldn't use: ${problems.join('; ')}.`);
+  const xmlProblems = problems.filter(p => p.xml).map(p => p.text);
+  if (xmlProblems.length && !fcpxml) {
+    xmlError = { file: '', message: xmlProblems.join(' ') };
+    showDropZones();
+  }
+  if (problems.length) toast(problems.map(p => p.text).join(' '));
 }
 
 function setupDropTarget() {
@@ -472,7 +548,7 @@ function setupDropTarget() {
     if (!hasFiles(e)) return;
     e.preventDefault();
     endDrag();
-    handleDrop(e.dataTransfer).catch(err => {
+    handleDrop(e.dataTransfer, Boolean(e.target.closest?.('#xml-zone'))).catch(err => {
       toast(`Couldn't read the dropped files: ${err.message}`);
       console.warn(err);
     });
@@ -628,7 +704,7 @@ function toast(message) {
 document.addEventListener('pointerdown', () => player.unlock(), { capture: true });
 document.addEventListener('keydown', e => {
   player.unlock();
-  const typing = e.target.closest('input:not([type="checkbox"]):not([type="range"]), select, textarea');
+  const typing = e.target.closest('input:not([type="checkbox"]):not([type="range"]), select, textarea, [popover]');
   if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
   const frame = rate().den / rate().num;
   if (e.key === ' ') {

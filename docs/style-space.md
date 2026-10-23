@@ -86,6 +86,33 @@ dragging the style point or the Sour slider changes the material gradually.
 (Changing the tempo or moving the hit still changes the bar grid, so the
 material changes too.)
 
+## No hit (2026-10-23)
+
+Gary's temp track for his first test scene is Jóhannsson's "Escape", which he
+labelled "SUSTAIN CHORD-TENSION". It has no hit and no marked beat: it is a
+slowly evolving soundscape. Every cue used to be built towards a hit, so the
+tool couldn't get near it. Unticking **Hit at the climax** (Structure panel)
+takes out the impact, full-orchestra chord, low brass, riser, swell and drums.
+The Climax point becomes the peak of a swell that then recedes.
+
+Nearer Jóhannsson (setting `scape`), a free-time soundscape then takes over
+from the changing string chords, chord-root bass, figure and snare. Its
+devices come from transcribing and segmenting "Escape" (Basic Pitch plus
+novelty segmentation, so treat them as hypotheses to check by ear):
+
+| Device | In "Escape" | Here |
+| --- | --- | --- |
+| Breathing bass | low C held throughout, rocking to the A♭ below and back | home note held low from start to end; after the Build point it rocks to the note a major third below |
+| Bloom | C spreading up through the octaves, 21–72 s | home note added an octave at a time through the build; they leave in reverse order through the tail |
+| Colour entering | B♭, E♭, G entering one at a time (72–104 s), then withdrawn | three scale notes, in an order set by the Chords seed, entering between Build and Climax and gone by the Tail |
+| Rubs | high G–A♭ (about 212 s) | a Sour surprise: two high notes a semitone apart, fading in |
+| Unresolved ending | ends on B over the low C | the tail holds the note below home, high, over the low home note |
+
+The piano and tune are left alone, so Satie can still sit on top. Untested by
+ear. The soundscape's positions are fractions of each section, so moving a
+point stretches it. Its strings are single held notes, so the swell inside a
+note can't be shaped yet: the crescendo comes from notes entering.
+
 ## Kept
 
 - **Tempo**: it matters for the pacing of the edit. The tempo is still fitted

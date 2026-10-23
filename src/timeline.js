@@ -1,5 +1,6 @@
 // Canvas timeline: phase regions, the fitted bar grid, the intensity curve, one
-// lane of events per layer, draggable phase points and the playhead.
+// lane of events per layer, draggable phase points, clickable Final Cut markers
+// and the playhead.
 
 import { LAYERS, LAYER_LABELS, POINT_KEYS } from './generator.js';
 
@@ -13,6 +14,7 @@ const CURVE_BOT = 108;
 const LANE_TOP = 116;
 const LANE_H = 15;
 const GRAB_PX = 7;
+const MARKER_GRAB_PX = 6;
 // Short, repeated events, drawn as ticks rather than bars.
 const TICKS = new Set(['pulse', 'harp', 'perc', 'snare']);
 const RULER_STEPS = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
@@ -25,10 +27,10 @@ const PHASES = [
 ];
 
 export class Timeline {
-  constructor(canvas, { onSeek, onMovePoint, onDragEnd, formatTime }) {
+  constructor(canvas, { onSeek, onMovePoint, onDragEnd, onMarkerClick, formatTime }) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.handlers = { onSeek, onMovePoint, onDragEnd };
+    this.handlers = { onSeek, onMovePoint, onDragEnd, onMarkerClick };
     this.formatTime = formatTime;
     this.model = null;
     this.playhead = 0;
@@ -41,6 +43,9 @@ export class Timeline {
     canvas.addEventListener('pointermove', e => this.onMove(e));
     canvas.addEventListener('pointerup', () => this.onUp());
     canvas.addEventListener('pointercancel', () => this.onUp());
+    // On click, not pointerdown, so a popup it opens isn't light-dismissed by
+    // the same press's pointerup.
+    canvas.addEventListener('click', e => this.onClick(e));
   }
 
   // model: { points, tempo, events, markers, mutes, duration, intensity(t) }
@@ -78,6 +83,20 @@ export class Timeline {
   localX(e) {
     return e.clientX - this.canvas.getBoundingClientRect().left;
   }
+  localY(e) {
+    return e.clientY - this.canvas.getBoundingClientRect().top;
+  }
+
+  // Markers sit on the ruler, above the phase points' reach.
+  markerNear(x, y) {
+    if (y >= BAND_TOP) return null;
+    let best = null, bestDist = MARKER_GRAB_PX;
+    for (const mk of this.model.markers ?? []) {
+      const d = Math.abs(this.xOf(mk.t) - x);
+      if (d <= bestDist) [best, bestDist] = [mk, d];
+    }
+    return best;
+  }
 
   pointNear(x) {
     let best = null, bestDist = GRAB_PX;
@@ -91,6 +110,11 @@ export class Timeline {
   onDown(e) {
     if (!this.model) return;
     const x = this.localX(e);
+    const marker = this.markerNear(x, this.localY(e));
+    if (marker) {
+      this.handlers.onSeek(marker.t);
+      return;
+    }
     this.canvas.setPointerCapture(e.pointerId);
     const key = this.pointNear(x);
     this.drag = key ? { kind: 'point', key } : { kind: 'scrub' };
@@ -101,11 +125,19 @@ export class Timeline {
     if (!this.model) return;
     const x = this.localX(e);
     if (!this.drag) {
-      this.canvas.style.cursor = this.pointNear(x) ? 'ew-resize' : 'pointer';
+      const marker = this.markerNear(x, this.localY(e));
+      this.canvas.title = marker ? `${marker.name || 'Marker'}: click to make it a phase point` : '';
+      this.canvas.style.cursor = !marker && this.pointNear(x) ? 'ew-resize' : 'pointer';
       return;
     }
     if (this.drag.kind === 'point') this.handlers.onMovePoint(this.drag.key, this.tOf(x));
     else this.handlers.onSeek(this.tOf(x));
+  }
+
+  onClick(e) {
+    if (!this.model) return;
+    const marker = this.markerNear(this.localX(e), this.localY(e));
+    if (marker) this.handlers.onMarkerClick?.(marker, e.clientX, e.clientY);
   }
 
   onUp() {

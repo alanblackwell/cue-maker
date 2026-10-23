@@ -135,3 +135,58 @@ test('copes with a very short cue', () => {
   assert.ok(events.length > 0);
   for (const e of events) assert.ok(Number.isFinite(e.t) && Number.isFinite(e.dur) && e.dur > 0, JSON.stringify(e));
 });
+
+const JOHANNSSON = COMPOSERS.find(c => c.id === 'johannsson').at;
+const noHitAt = (style, sour = 0.2) => {
+  const doc = docAt(style, sour);
+  doc.music.hit = false;
+  return doc;
+};
+
+test('with no hit, nothing hits, at any style', () => {
+  for (const style of STYLES) {
+    const { events, noHit } = generate(noHitAt(style, 1));
+    assert.ok(noHit);
+    for (const type of ['impact', 'riser', 'swell', 'perc']) {
+      assert.ok(!events.some(e => e.type === type), `${type} at ${style}`);
+    }
+  }
+});
+
+test('no-hit Jóhannsson: held bass, octaves blooming in order, colour withdrawn by the tail', () => {
+  const doc = noHitAt(JOHANNSSON, 0);
+  const { events } = generate(doc);
+  const p = doc.points;
+  const bass = events.filter(e => e.layer === 'bass');
+  // The bass is continuous from start to end, home note except for rocking.
+  assert.ok(near(bass[0].t, p.start));
+  for (let i = 1; i < bass.length; i++) assert.ok(near(bass[i].t, bass[i - 1].t + bass[i - 1].dur));
+  assert.ok(near(bass.at(-1).t + bass.at(-1).dur, p.end));
+  assert.ok(bass.every(e => e.t < p.build ? e.note === 38 : [38, 34].includes(e.note)));
+  assert.ok(!events.some(e => e.layer === 'pulse' || e.layer === 'perc'));
+  // No changing chords on the strings: every strings event is a single held note.
+  const strings = events.filter(e => e.layer === 'strings');
+  assert.ok(strings.every(e => e.notes.length === 1));
+  const octaves = strings.filter(e => e.notes[0] % 12 === 50 % 12);
+  assert.deepEqual(octaves.map(e => e.notes[0]), [62, 50, 74, 86]);
+  const colour = strings.filter(e => e.notes[0] % 12 !== 50 % 12);
+  assert.equal(colour.length, 3);
+  assert.ok(colour.every(e => e.t >= p.build && e.t < p.hit && e.t + e.dur <= p.tail + 1e-9));
+  // Ends unresolved, on the note below home.
+  assert.deepEqual(events.find(e => e.layer === 'tail').notes, [38, 73]);
+});
+
+test("turning the hit off leaves Satie's chords alone", () => {
+  const satie = COMPOSERS.find(c => c.id === 'satie').at;
+  const withHit = generate(docAt(satie, 0)).events.filter(e => e.layer === 'piano');
+  const without = generate(noHitAt(satie, 0)).events.filter(e => e.layer === 'piano');
+  assert.deepEqual(without, withHit);
+});
+
+test('moving the start point stretches the soundscape, keeping its order', () => {
+  const a = noHitAt(JOHANNSSON, 0);
+  const b = structuredClone(a);
+  b.points.start = 4;
+  const notes = d => generate(d).events.filter(e => e.layer === 'strings').map(e => e.notes[0]);
+  assert.deepEqual(notes(b), notes(a));
+});

@@ -170,3 +170,33 @@ export function assignMarkersToPoints(markers, previous) {
   }
   return { points, assigned: Object.keys(found), ignored };
 }
+
+// Puts one phase point at time t (e.g. a marker the user clicked). Unlike
+// dragging, it isn't stopped by its neighbours: any point it passes is pushed
+// along, keeping its previous spacing, so the points stay in order. Returns the
+// new points and the keys of the other points that had to move.
+export function placePoint(previous, key, t, maxEnd = Infinity) {
+  const points = { ...previous };
+  const i = POINT_KEYS.indexOf(key);
+  const last = POINT_KEYS.length - 1;
+  points[key] = Math.min(Math.max(0, t), maxEnd);
+  for (let j = i + 1; j <= last; j++) {
+    const k = POINT_KEYS[j], before = POINT_KEYS[j - 1];
+    if (points[k] < points[before] + MIN_GAP) points[k] = points[before] + Math.max(MIN_GAP, previous[k] - previous[before]);
+  }
+  for (let j = i - 1; j >= 0; j--) {
+    const k = POINT_KEYS[j], after = POINT_KEYS[j + 1];
+    if (points[k] > points[after] - MIN_GAP) points[k] = points[after] - Math.max(MIN_GAP, previous[after] - previous[k]);
+  }
+  // Pushed points may now run off either end; squeeze them back in.
+  for (let j = last; j >= 0; j--) {
+    const k = POINT_KEYS[j];
+    points[k] = Math.min(points[k], j === last ? maxEnd : points[POINT_KEYS[j + 1]] - MIN_GAP);
+  }
+  for (let j = 0; j <= last; j++) {
+    const k = POINT_KEYS[j];
+    points[k] = Math.max(points[k], j === 0 ? 0 : points[POINT_KEYS[j - 1]] + MIN_GAP);
+  }
+  const moved = POINT_KEYS.filter(k => k !== key && points[k] !== previous[k]);
+  return { points, moved };
+}

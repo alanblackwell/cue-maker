@@ -19,8 +19,9 @@ export function defaultProject() {
     markers: [],
     // The Final Cut XML the markers came from, or null.
     xml: null,
-    // style: a point in the composers' plane (see generator.js); sour: 0..1.
-    music: { style: [0, 0], sour: 0.2, tempo: 96, energy: 0.8, buildCurve: 1.8 },
+    // style: a point in the composers' plane (see generator.js); sour: 0..1;
+    // hit: false for a cue that swells and recedes with nothing hitting.
+    music: { style: [0, 0], sour: 0.2, tempo: 96, energy: 0.8, buildCurve: 1.8, hit: true },
     seeds: { harmony: 1, tune: 2, pulse: 3, perc: 4, electronics: 5, surprise: 6 },
     locks: { harmony: false, tune: false, pulse: false, perc: false, electronics: false, surprise: false },
     mutes: {
